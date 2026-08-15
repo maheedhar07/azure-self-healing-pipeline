@@ -1,0 +1,13 @@
+# Azure Functions
+local.settings.json
+.python_packages/
+__pycache__/
+*.pyc
+.venv/
+venv/
+bin/
+obj/
+
+# Azure
+*.PublishSettings
+.azure/

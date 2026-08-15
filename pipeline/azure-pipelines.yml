@@ -1,0 +1,48 @@
+# Example build pipeline with the self-healing failure trigger.
+# The interesting part is the `notify_self_healer` job at the bottom — copy that into
+# the pipeline you want to protect. Everything above it is a placeholder build.
+
+trigger:
+  branches:
+    include: [main]
+    # Loop-breaker: never build (and therefore never re-heal) AI branches.
+    exclude: ["ai-fix/*"]
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: build_and_test
+    jobs:
+      - job: build
+        steps:
+          - script: |
+              echo "your build + test steps here"
+              # e.g. npm ci && npm test  /  pytest  /  dotnet test
+            displayName: Build and test
+
+  # ----------------------------------------------------------------- self-heal trigger
+  - stage: self_heal
+    dependsOn: build_and_test
+    condition: failed()          # only runs when the build stage failed
+    jobs:
+      - job: notify_self_healer
+        steps:
+          - task: PowerShell@2
+            displayName: Notify self-healing function
+            inputs:
+              targetType: inline
+              script: |
+                $payload = @{
+                  org     = "$(System.CollectionUri)"       # https://dev.azure.com/<org>/
+                  project = "$(System.TeamProject)"
+                  buildId = "$(Build.BuildId)"
+                  repo    = "$(Build.Repository.ID)"
+                  commit  = "$(Build.SourceVersion)"
+                  branch  = "$(Build.SourceBranchName)"
+                } | ConvertTo-Json
+                Invoke-RestMethod -Method Post -Uri "$(HEALER_FUNCTION_URL)" `
+                  -Body $payload -ContentType "application/json"
+            env:
+              # Store the function URL (incl. ?code=... function key) as a secret variable.
+              HEALER_FUNCTION_URL: $(HEALER_FUNCTION_URL)
