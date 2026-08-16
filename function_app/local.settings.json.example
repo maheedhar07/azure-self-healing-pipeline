@@ -13,6 +13,10 @@
     "FOUNDRY_RESOURCE": "<your-foundry-resource>",
     "CLAUDE_MODEL": "claude-sonnet-4-6",
 
+    "_comment_hook": "For the /hook (Service Hook) trigger: your org URL, and the set of pipelines to heal. MONITORED_PIPELINES is a comma/space list of pipeline definition IDs or names; leave empty to monitor ALL failed builds in the project.",
+    "ADO_ORG_URL": "https://dev.azure.com/<your-org>",
+    "MONITORED_PIPELINES": "42, 58, 103",
+
     "NOTIFY_WEBHOOK_URL": "https://outlook.office.com/webhook/...",
 
     "_comment_auth": "Leave ADO_PAT unset to use managed identity (preferred). Only set it (from Key Vault) if Entra integration with the ADO org is not yet available.",

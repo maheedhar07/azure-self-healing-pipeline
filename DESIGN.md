@@ -60,11 +60,19 @@ activity functions) as steps grow and you want built-in retry/state/replay.
 
 ## Trigger choice
 
-- **Pilot:** in-pipeline job with `condition: failed()` that POSTs the build context to the
-  Function. Self-contained, no webhook infra. See `pipeline/azure-pipelines.yml`.
-- **Scale:** ADO **Service Hook** ("Build completed", status = Failed) → **Storage Queue**
-  → queue-triggered Function. One subscription covers many pipelines; retry + dead-letter
-  for free. No per-pipeline edits.
+- **Pilot (one pipeline):** in-pipeline job with `condition: failed()` that POSTs the build
+  context to `/api/heal`. Self-contained, no webhook infra. See `pipeline/azure-pipelines.yml`.
+- **Monitor a set of pipelines:** one project-wide ADO **Service Hook** ("Build completed",
+  status = Failed) → `/api/hook`. The Function normalizes the event and gates on
+  `MONITORED_PIPELINES` (comma/space list of pipeline definition IDs or names; empty = all).
+  Register it with `scripts/register_service_hook.sh`. No per-pipeline YAML edits — the
+  monitored set is an app setting you change without redeploying.
+
+  A "Build completed" hook filters to *one* pipeline or *all*, so the allowlist-in-Function
+  is how you express "these N". (Alternative: one subscription per pipeline with
+  `definitionName` set — precise, but N subscriptions to manage.)
+- **Scale further (durability):** point the same Service Hook at a **Storage Queue** instead
+  of the HTTP endpoint, consumed by a queue-triggered Function — adds retry + dead-letter.
 
 ## Prerequisites
 

@@ -21,21 +21,44 @@ See **[DESIGN.md](DESIGN.md)** for the full architecture, cost rationale, and gu
 
 ```
 function_app/
-  function_app.py          Thin Azure Function HTTP entrypoint
+  function_app.py          HTTP entrypoint — /api/heal (in-pipeline) + /api/hook (Service Hook)
   healer/
     core.py                Pure orchestration — stdlib only, unit-tested
     ado.py                 Azure DevOps REST adapter (lazy `requests`/`azure.identity`)
+    events.py              Service Hook normalization + monitored-set gate (pure)
     providers.py           Model dispatch: azure_openai (o4-mini) | claude_foundry
   tests/
-    test_core.py           unittest suite — no creds, no SDKs, all I/O faked
+    test_core.py           unittest — orchestration logic, all I/O faked
+    test_events.py         unittest — allowlist + payload normalization
   requirements.txt
   host.json
   local.settings.json.example
 pipeline/
   azure-pipelines.yml      Example build pipeline with the failure trigger job
+scripts/
+  register_service_hook.sh Create the project-wide "failed build" Service Hook
 infra/
   main.bicep               One-command infra (Function, Storage, Key Vault, App Insights)
 ```
+
+## Monitoring a set of pipelines
+
+Two ways to trigger the healer:
+
+- **One pipeline (pilot):** copy the `notify_self_healer` job from
+  `pipeline/azure-pipelines.yml` into that pipeline; it POSTs `/api/heal` on failure.
+- **A set of pipelines (no YAML edits):** register one project-wide Service Hook and let the
+  Function filter to the monitored set:
+  ```bash
+  export ADO_ORG_URL=https://dev.azure.com/<org>
+  export ADO_PROJECT_ID=<project-guid>
+  export HEALER_HOOK_URL='https://<app>.azurewebsites.net/api/hook?code=<function-key>'
+  export AZDO_PAT=<admin-pat-for-setup-only>
+  ./scripts/register_service_hook.sh
+  ```
+  Then set which pipelines heal via the `MONITORED_PIPELINES` app setting (comma/space list
+  of pipeline **definition IDs or names**; empty = every failed build in the project). Edit
+  the set anytime — no redeploy, no per-pipeline changes.
 
 ## Test
 
@@ -70,7 +93,7 @@ Azure DevOps or the model — that step needs your provisioned resources and cre
 
 ## Status
 
-Scaffold / pilot skeleton. The orchestration logic is unit-tested (13 tests, all green).
+Scaffold / pilot skeleton. The orchestration + trigger logic is unit-tested (21 tests, green).
 The ADO REST and model calls are written against the documented APIs but exercised only
 through fakes so far — a live run needs your provisioned resources, credentials, and the
 `# TODO` items (managed-identity onto the ADO org, required PR reviewers, log scrubbing).
