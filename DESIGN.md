@@ -27,10 +27,25 @@ Azure DevOps Pipeline (build/test on push)
    3. ADO REST: Get Commit Changes   → files in the offending commit
    4. ADO REST: Get Item (Git)       → source of the changed code files
    5. Build structured prompt        (in-function code)
-   6. Azure OpenAI: chat completion  → minimal proposed fix
+   6. LLM: chat completion           → minimal proposed fix
+        MODEL_PROVIDER = azure_openai (o4-mini)  |  claude_foundry (Claude Sonnet 4.6)
    7. ADO Git REST: create branch → commit fix → create Pull Request
    8. Notify: Teams/Slack incoming webhook
 ```
+
+## Model choice (provider-swappable)
+
+`request_fix()` dispatches on the `MODEL_PROVIDER` app setting so you can A/B providers on
+the same failures. This is a code-diagnosis-and-fix task (SWE-bench-shaped), so model quality
+matters — **GPT-4o-mini is deliberately not the default.**
+
+| `MODEL_PROVIDER` | Backend | Default | Why |
+|---|---|---|---|
+| `azure_openai` | Azure OpenAI | `o4-mini` | Reasoning model; strong on debugging, stays in Azure OpenAI. |
+| `claude_foundry` | Claude on Microsoft Foundry | `claude-sonnet-4-6` | SWE-bench leader family; in-tenant via Foundry, MACC-credit eligible. Escalate to `claude-opus-4-8` for the hardest fixes. |
+
+Only the selected provider's SDK is imported at runtime (lazy import), and switching is a
+single app-setting change — no redeploy of code.
 
 ## Orchestrator choice
 
@@ -56,7 +71,8 @@ activity functions) as steps grow and you want built-in retry/state/replay.
 **Infra (all in one resource group, deployed by `infra/main.bicep`)**
 - Azure subscription + resource group
 - Function App on **Consumption (Y1)** plan + its Storage account
-- **Azure OpenAI** resource + a `gpt-4o-mini` deployment
+- One model backend: **Azure OpenAI** resource + an `o4-mini` deployment, **or** Claude on
+  **Microsoft Foundry** (`claude-sonnet-4-6`) — selected by `MODEL_PROVIDER`
 - **Key Vault** for secrets
 - **Application Insights** — the audit log of every prompt/response (non-optional)
 
@@ -68,7 +84,7 @@ activity functions) as steps grow and you want built-in retry/state/replay.
   `499b84ac-1321-427f-aa17-267ca6975798` — no PAT to rotate.
 - Fallback if Entra integration isn't available yet: a **service-account PAT** in Key Vault
   (never a personal PAT).
-- Azure OpenAI: managed identity, or key in Key Vault.
+- Azure OpenAI / Foundry: managed identity, or key in Key Vault.
 
 ## Guardrails (do these before widening scope)
 

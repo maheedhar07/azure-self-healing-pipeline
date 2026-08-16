@@ -1,4 +1,6 @@
 azure-functions
 azure-identity
-openai>=1.40
 requests
+# Model providers — only the one MODEL_PROVIDER selects is used at runtime:
+openai>=1.40          # MODEL_PROVIDER=azure_openai (o4-mini / gpt-4.1)
+anthropic>=0.40       # MODEL_PROVIDER=claude_foundry (Claude on Microsoft Foundry)
